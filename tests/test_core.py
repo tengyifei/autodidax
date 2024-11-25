@@ -7,7 +7,6 @@ import autodidax as adx
 
 
 def test_eval():
-
   def scalar(x, y):
     a = 2.0 * adx.sin(x)
     b = 3.0 * adx.cos(y)

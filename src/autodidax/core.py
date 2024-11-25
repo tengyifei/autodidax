@@ -15,7 +15,6 @@ class MainTrace(NamedTuple):
   Used as a placeholder in the interpreter stack.
   Determines the interpretation order with attribute `level`.
   '''
-
   def __gt__(self, other):
     return self.level > other.level
 
@@ -30,7 +29,6 @@ class Trace:
   Creates boxed up values (Tracers) and unpacks them to apply interpretation rules.
   Each Trace object points to only 1 MainTrace.
   '''
-
   def __init__(self, main: MainTrace):
     self.main = main
 
@@ -52,7 +50,6 @@ class Tracer:
   '''
   Boxes up an operand value of an interpretation rule (Trace).
   '''
-
   @property
   def aval(self):
     '''Returns the abstract value.'''
@@ -167,20 +164,13 @@ EVAL_RULES = {
     PRIM_TOK.greater: lambda x, y: np.greater(x, y),
     PRIM_TOK.less: lambda x, y: np.less(x, y),
     PRIM_TOK.transpose: lambda x, *, perm: np.transpose(x, perm),
-    PRIM_TOK.reduce_sum: lambda x, *, axis: np.sum(x, axis)
+    PRIM_TOK.reduce_sum: lambda x, *, axis: np.sum(x, axis),
+    PRIM_TOK.broadcast: lambda x, *, shape, axes: np.broadcast_to(
+        np.expand_dims(x, sorted(axes)), shape),
 }
 
 
-def broadcast_eval(x, *, shape, axes):
-  x = np.expand_dims(x, sorted(axes))
-  return np.broadcast_to(x, shape)
-
-
-EVAL_RULES[PRIM_TOK.broadcast] = broadcast_eval
-
-
 class EvalTrace(Trace):
-
   def pure(self, val):
     return val
 
@@ -197,10 +187,7 @@ class EvalTrace(Trace):
 
 TRACE_STACK: List[MainTrace] = [MainTrace(level=0, trace_type=EvalTrace)]
 DYNAMIC_TRACE: Optional[MainTrace] = None
-JAX_TYPES = {
-    bool, int, float, np.bool_, np.int32, np.int64, np.float32, np.float64,
-    np.ndarray
-}
+JAX_TYPES = {bool, int, float, np.bool_, np.int32, np.int64, np.float32, np.float64, np.ndarray}
 
 
 @contextmanager
@@ -239,8 +226,7 @@ def bind(prim, *args, **kwargs):
   top_trace = find_top_trace(args)
   tracers = [full_raise(top_trace, arg) for arg in args]
   out_tracer = top_trace.apply_prim(prim, tracers, kwargs)
-  output = full_lower(out_tracer)
-  return output
+  return full_lower(out_tracer)
 
 
 def find_top_trace(args) -> Trace:
@@ -263,8 +249,7 @@ def full_raise(trace: Trace, arg: Any) -> Tracer:
     elif arg_main > main:
       raise Exception(f'Can\'t lift level {arg_main.level} to {main.level}.')
     else:
-      raise Exception(
-          f'Different main traces at same level: {arg_main}, {main}.')
+      raise Exception(f'Different main traces at same level: {arg_main}, {main}.')
   else:
     assert type(arg) in JAX_TYPES, f'Type {type(arg)} not supported.'
     return trace.pure(arg)
@@ -312,8 +297,7 @@ class ShapedArray:
     return hash((self.shape, self.dtype))
 
   def __eq__(self, other):
-    return (type(self) is type(other) and self.shape == other.shape and
-            self.dtype == other.dtype)
+    return (type(self) is type(other) and self.shape == other.shape and self.dtype == other.dtype)
 
   def __repr__(self):
     return f'ShapedArray(shape={self.shape}, dtype={self.dtype})'
