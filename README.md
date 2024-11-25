@@ -1,0 +1,3 @@
+# autodidax
+
+JAX from scratch.

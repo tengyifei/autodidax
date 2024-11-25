@@ -1,0 +1,16 @@
+{
+	"[python]": {
+		"diffEditor.ignoreTrimWhitespace": false,
+		"gitlens.codeLens.symbolScopes": [
+			"!Module"
+		],
+		"editor.formatOnType": true,
+		"editor.formatOnSave": true,
+		"editor.wordBasedSuggestions": "off",
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": "explicit"
+		}
+	},
+	"python.analysis.typeCheckingMode": "standard",
+	"python.analysis.autoImportCompletions": true
+}
