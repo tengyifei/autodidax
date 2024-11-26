@@ -55,42 +55,42 @@ def impl(prim):
 
 @impl(PRIM_TOK.add)
 def jvp_add(primals, tangents):
-  ''' f = x + y -> f' = x' + y' '''
+  """ f = x + y -> f' = x' + y' """
   (x, y), (x_dot, y_dot) = primals, tangents
   return x + y, x_dot + y_dot
 
 
 @impl(PRIM_TOK.mul)
 def jvp_mul(primals, tangents):
-  ''' f = x * y -> f' = x'y + xy' '''
+  """ f = x * y -> f' = x'y + xy' """
   (x, y), (x_dot, y_dot) = primals, tangents
   return x * y, x_dot * y + x * y_dot
 
 
 @impl(PRIM_TOK.sin)
 def jvp_sin(primals, tangents):
-  ''' f = sin(x) -> f' = cos(x) * x' '''
+  """ f = sin(x) -> f' = cos(x) * x' """
   (x,), (x_dot,) = primals, tangents
   return POP.sin(x), POP.cos(x) * x_dot
 
 
 @impl(PRIM_TOK.cos)
 def jvp_cos(primals, tangents):
-  ''' f = cos(x) -> f' = -sin(x) * x' '''
+  """ f = cos(x) -> f' = -sin(x) * x' """
   (x,), (x_dot,) = primals, tangents
   return POP.cos(x), -POP.sin(x) * x_dot
 
 
 @impl(PRIM_TOK.neg)
 def jvp_neg(primals, tangents):
-  ''' f = -x -> f' = -x' '''
+  """ f = -x -> f' = -x' """
   (x,), (x_dot,) = primals, tangents
   return POP.neg(x), POP.neg(x_dot)
 
 
 @impl(PRIM_TOK.greater)
 def jvp_greater(primals, tangents):
-  ''' Operator not differentiable '''
+  """ Operator not differentiable """
   x, y = primals
   primal_out = POP.greater(x, y)
   aval = get_aval(primal_out)
@@ -100,7 +100,7 @@ def jvp_greater(primals, tangents):
 
 @impl(PRIM_TOK.less)
 def jvp_less(primals, tangents):
-  ''' Operator not differentiable '''
+  """ Operator not differentiable """
   x, y = primals
   primal_out = POP.less(x, y)
   aval = get_aval(primal_out)
@@ -136,6 +136,13 @@ def jvp_reduce_sum(primals, tangents, *, axis):
 
 
 def jvp(fn, primals, tangents):
+  """
+  Computes the output and the JVP of `fn` at `primals`.
+
+  The JVP (Jacobian-Vector Product) is the Jacobian matrix of `fn`
+  evaluated at `primals`, multiplied by the `tangents` vector.
+  In other words, `J_{fn(primals)} @ tangents`.
+  """
   def to_tuple(x):
     return x if isinstance(x, tuple) else (x,)
 
@@ -146,7 +153,7 @@ def jvp(fn, primals, tangents):
     in_tracers = [JVPTracer(trace, p, t) for p, t in zip(primals, tangents)]
     fn_outs = fn(*in_tracers)
     if isinstance(fn_outs, (tuple, list)):
-      out_primals_tangents = [lower_fn_output(trace, fout) for fout in fn_outs]
+      out_primals_tangents = [lower_fn_output(trace, out) for out in fn_outs]
       out_primals, out_tangents = zip(*out_primals_tangents)
     else:
       out_primals, out_tangents = lower_fn_output(trace, fn_outs)

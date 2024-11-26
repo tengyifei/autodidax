@@ -19,17 +19,17 @@ def test_autodiff_basic():
 
 def test_autodiff_complex():
   def f(x):
-    y = adx.sin(x) * 2.
+    y = adx.sin(x) * 2. + 1
     z = -y + x
     return z
 
-  x, xdot = 3., 1.
-  y, ydot = adx.jvp(f, (x,), (xdot,))
+  x, x_dot = 3., 1.
+  y, y_dot = adx.jvp(f, (x,), (x_dot,))
   print(y)
-  print(ydot)
+  print(y_dot)
 
-  assert np.allclose(y, 2.7177599838802657)
-  assert np.allclose(ydot, 2.979984993200891)
+  assert np.allclose(y, 1.7177599838802657)
+  assert np.allclose(y_dot, 2.979984993200891)
 
 
 def test_autodiff_higher_order():
