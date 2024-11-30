@@ -24,7 +24,7 @@ def test_eval_complex():
   x = np.array([1., 2., 3.])
   y = np.array([4., 5., 6.])
   z = adx.reduce_sum(adx.mul(x, y))
-  assert isinstance(z, np.ndarray)
+  assert isinstance(z, np.number)
   assert np.allclose(z, 32.)
   x = np.array([[1., 2.], [3., 4.]])
   y = adx.transpose(x, perm=(1, 0))

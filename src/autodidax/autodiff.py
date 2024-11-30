@@ -1,13 +1,21 @@
 import numpy as np
 
-from autodidax.core import POP, PRIM_TOK, Interpreter, Tracer, full_raise, get_aval, new_main_trace
+from autodidax.core import (
+    POP,
+    PRIM_TOK,
+    Interpreter,
+    Tracer,
+    full_raise,
+    get_aval,
+    new_interpreter,
+)
 
 # --- JVP Interpreter Classes ---
 
 
 class JVPTracer(Tracer):
   def __init__(self, trace, primal, tangent):
-    self._interp = trace
+    self._interpreter = trace
     self.primal = primal
     self.tangent = tangent
 
@@ -19,8 +27,9 @@ class JVPTracer(Tracer):
     return f'JVPTracer(primal={self.primal}, tangent={self.tangent})'
 
 
-class JVPTrace(Interpreter):
+class JVPInterpreter(Interpreter):
   def to_tracer(self, val):
+    """Convert val to a JVPTracer."""
     aval = get_aval(val)
     tracer = JVPTracer(self, val, np.zeros_like(aval, aval.dtype))
     return tracer
@@ -31,7 +40,7 @@ class JVPTrace(Interpreter):
   def lift(self, val):
     return self.to_tracer(val)
 
-  def apply_prim(self, prim, tracers, params):
+  def interp(self, prim, tracers, params):
     primals_in = [t.primal for t in tracers]
     tangents_in = [t.tangent for t in tracers]
     jvp_rule = JVP_RULES[prim]
@@ -148,20 +157,19 @@ def jvp(fn, primals, tangents):
 
   primals, tangents = map(to_tuple, (primals, tangents))
 
-  with new_main_trace(JVPTrace) as main_trace:
-    trace = main_trace
-    in_tracers = [JVPTracer(trace, p, t) for p, t in zip(primals, tangents)]
+  with new_interpreter(JVPInterpreter) as interp:
+    in_tracers = [JVPTracer(interp, p, t) for p, t in zip(primals, tangents)]
     fn_outs = fn(*in_tracers)
     if isinstance(fn_outs, (tuple, list)):
-      out_primals_tangents = [lower_fn_output(trace, out) for out in fn_outs]
+      out_primals_tangents = [lower_fn_output(interp, out) for out in fn_outs]
       out_primals, out_tangents = zip(*out_primals_tangents)
     else:
-      out_primals, out_tangents = lower_fn_output(trace, fn_outs)
+      out_primals, out_tangents = lower_fn_output(interp, fn_outs)
 
   return out_primals, out_tangents
 
 
-def lower_fn_output(trace, fn_out):
-  out_tracer = full_raise(trace, fn_out)
+def lower_fn_output(interp: Interpreter, fn_out):
+  out_tracer = full_raise(interp, fn_out)
   out_primal, out_tangent = out_tracer.primal, out_tracer.tangent
   return out_primal, out_tangent

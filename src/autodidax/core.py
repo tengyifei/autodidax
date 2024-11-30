@@ -28,12 +28,12 @@ class Interpreter(NamedTuple):
     '''Raise the level of Tracer objects to this Trace object'''
     raise NotImplementedError
 
-  def apply_prim(self, prim, tracers, params):
+  def interp(self, prim, tracers, params):
     raise NotImplementedError
 
 
 class Tracer:
-  _interp: Interpreter
+  _interpreter: Interpreter
   __array_priority__ = 1000
   '''
   Boxes up an operand value of an interpretation rule (Trace).
@@ -44,8 +44,8 @@ class Tracer:
     raise NotImplementedError
 
   @property
-  def interp(self):
-    return self._interp
+  def interpreter(self):
+    return self._interpreter
 
   def full_lower(self):
     return self
@@ -158,14 +158,14 @@ EVAL_RULES = {
 }
 
 
-class EvalTrace(Interpreter):
+class EvalInterpreter(Interpreter):
   def pure(self, val):
     return val
 
   def lift(self, val):
     return val
 
-  def apply_prim(self, prim, tracers, params):
+  def interp(self, prim, tracers, params):
     eval_rule = EVAL_RULES[prim]
     output = eval_rule(*tracers, **params)
     return output
@@ -173,73 +173,73 @@ class EvalTrace(Interpreter):
 
 # --- Core Machinery ---
 
-TRACE_STACK: List[Interpreter] = [EvalTrace(level=0)]
-DYNAMIC_TRACE: Optional[Interpreter] = None
+INTERPRETER_STACK: List[Interpreter] = [EvalInterpreter(level=0)]
+DYNAMIC_INTERPRETER: Optional[Interpreter] = None
 JAX_TYPES = {bool, int, float, np.bool_, np.int32, np.int64, np.float32, np.float64, np.ndarray}
 
 
 @contextmanager
-def new_main_trace(trace_type: Type['Interpreter'], global_data=None):
+def new_interpreter(ty: Type['Interpreter'], global_data=None):
   '''
-  Creates a new main trace of the given trace type and pushes it into the trace stack.
+  Creates a new interpreter of the given type and pushes it into the trace stack.
   '''
-  level = len(TRACE_STACK)
-  main_trace = trace_type(level, global_data)
-  TRACE_STACK.append(main_trace)
+  level = len(INTERPRETER_STACK)
+  interpreter = ty(level, global_data)
+  INTERPRETER_STACK.append(interpreter)
   try:
-    yield main_trace
+    yield interpreter
   finally:
-    TRACE_STACK.pop()
+    INTERPRETER_STACK.pop()
 
 
 @contextmanager
-def new_dynamic_trace(main_trace: Interpreter):
+def new_dynamic_interpreter(interpreter: Interpreter):
   '''
-  Allows the given main trace to stay on top of the trace stack,
-  effectively stashing away all lower-leveled main traces.
+  Allows the given interpreter to stay on top of the interpreter stack,
+  effectively stashing away all lower-leveled interpreters.
   '''
-  global DYNAMIC_TRACE
-  prev_dyn_trace, DYNAMIC_TRACE = DYNAMIC_TRACE, main_trace
+  global DYNAMIC_INTERPRETER
+  prev_dyn_interp, DYNAMIC_INTERPRETER = DYNAMIC_INTERPRETER, interpreter
   try:
     yield
   finally:
-    DYNAMIC_TRACE = prev_dyn_trace
+    DYNAMIC_INTERPRETER = prev_dyn_interp
 
 
 def bind(prim, *args, **kwargs):
   '''
-  Decides which main trace to use.
+  Decides which interpreter to use.
   Wraps up arguments into tracers and applies interpretation rules.
   '''
-  top_trace = find_top_trace(args)
-  tracers = [full_raise(top_trace, arg) for arg in args]
-  out_tracer = top_trace.apply_prim(prim, tracers, kwargs)
+  interpreter = find_top_interpreter(args)
+  tracers = [full_raise(interpreter, arg) for arg in args]
+  out_tracer = interpreter.interp(prim, tracers, kwargs)
   return full_lower(out_tracer)
 
 
-def find_top_trace(args) -> Interpreter:
-  main_traces = [arg.interp for arg in args if isinstance(arg, Tracer)]
-  top_main_trace = max(main_traces, default=TRACE_STACK[0])
-  if DYNAMIC_TRACE and DYNAMIC_TRACE > top_main_trace:
-    top_main_trace = DYNAMIC_TRACE
-  return top_main_trace
+def find_top_interpreter(args) -> Interpreter:
+  interpreters = [arg.interpreter for arg in args if isinstance(arg, Tracer)]
+  top_interpreter = max(interpreters, default=INTERPRETER_STACK[0])
+  if DYNAMIC_INTERPRETER and DYNAMIC_INTERPRETER > top_interpreter:
+    top_interpreter = DYNAMIC_INTERPRETER
+  return top_interpreter
 
 
-def full_raise(trace: Interpreter, arg: Any) -> Tracer:
+def full_raise(interpreter: Interpreter, arg: Any) -> Tracer:
   if isinstance(arg, Tracer):
-    main = trace
-    arg_main = arg.interp
-    if arg_main is main:
+    interp = interpreter
+    arg_interp = arg.interpreter
+    if arg_interp is interp:
       return arg
-    elif arg_main < main:
-      return trace.lift(arg)
-    elif arg_main > main:
-      raise Exception(f'Can\'t lift level {arg_main.level} to {main.level}.')
+    elif arg_interp < interp:
+      return interpreter.lift(arg)
+    elif arg_interp > interp:
+      raise Exception(f'Can\'t lift level {arg_interp.level} to {interp.level}.')
     else:
-      raise Exception(f'Different main traces at same level: {arg_main}, {main}.')
+      raise Exception(f'Different interpreters at same level: {arg_interp}, {interp}.')
   else:
     assert type(arg) in JAX_TYPES, f'Type {type(arg)} not supported.'
-    return trace.pure(arg)
+    return interpreter.pure(arg)
 
 
 def full_lower(arg: Any):
