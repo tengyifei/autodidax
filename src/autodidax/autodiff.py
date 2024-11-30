@@ -1,13 +1,13 @@
 import numpy as np
 
-from autodidax.core import POP, PRIM_TOK, MainTrace, Tracer, full_raise, get_aval, new_main_trace
+from autodidax.core import POP, PRIM_TOK, Interpreter, Tracer, full_raise, get_aval, new_main_trace
 
 # --- JVP Interpreter Classes ---
 
 
 class JVPTracer(Tracer):
   def __init__(self, trace, primal, tangent):
-    self._trace = trace
+    self._interp = trace
     self.primal = primal
     self.tangent = tangent
 
@@ -19,7 +19,7 @@ class JVPTracer(Tracer):
     return f'JVPTracer(primal={self.primal}, tangent={self.tangent})'
 
 
-class JVPTrace(MainTrace):
+class JVPTrace(Interpreter):
   def to_tracer(self, val):
     aval = get_aval(val)
     tracer = JVPTracer(self, val, np.zeros_like(aval, aval.dtype))

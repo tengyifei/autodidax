@@ -6,11 +6,11 @@ import numpy as np
 # --- Base Interpreter Classes ---
 
 
-class MainTrace(NamedTuple):
+class Interpreter(NamedTuple):
   level: int
   global_data: Optional[Any] = None
   '''
-  The interpreter.
+  The interpreter base class.
   Creates boxed up values (Tracers) and unpacks them to apply interpretation rules.
   Determines the interpretation order with attribute `level`.
   '''
@@ -33,7 +33,7 @@ class MainTrace(NamedTuple):
 
 
 class Tracer:
-  _trace: MainTrace
+  _interp: Interpreter
   __array_priority__ = 1000
   '''
   Boxes up an operand value of an interpretation rule (Trace).
@@ -44,8 +44,8 @@ class Tracer:
     raise NotImplementedError
 
   @property
-  def trace(self):
-    return self._trace
+  def interp(self):
+    return self._interp
 
   def full_lower(self):
     return self
@@ -158,7 +158,7 @@ EVAL_RULES = {
 }
 
 
-class EvalTrace(MainTrace):
+class EvalTrace(Interpreter):
   def pure(self, val):
     return val
 
@@ -173,13 +173,13 @@ class EvalTrace(MainTrace):
 
 # --- Core Machinery ---
 
-TRACE_STACK: List[MainTrace] = [EvalTrace(level=0)]
-DYNAMIC_TRACE: Optional[MainTrace] = None
+TRACE_STACK: List[Interpreter] = [EvalTrace(level=0)]
+DYNAMIC_TRACE: Optional[Interpreter] = None
 JAX_TYPES = {bool, int, float, np.bool_, np.int32, np.int64, np.float32, np.float64, np.ndarray}
 
 
 @contextmanager
-def new_main_trace(trace_type: Type['MainTrace'], global_data=None):
+def new_main_trace(trace_type: Type['Interpreter'], global_data=None):
   '''
   Creates a new main trace of the given trace type and pushes it into the trace stack.
   '''
@@ -193,7 +193,7 @@ def new_main_trace(trace_type: Type['MainTrace'], global_data=None):
 
 
 @contextmanager
-def new_dynamic_trace(main_trace: MainTrace):
+def new_dynamic_trace(main_trace: Interpreter):
   '''
   Allows the given main trace to stay on top of the trace stack,
   effectively stashing away all lower-leveled main traces.
@@ -217,18 +217,18 @@ def bind(prim, *args, **kwargs):
   return full_lower(out_tracer)
 
 
-def find_top_trace(args) -> MainTrace:
-  main_traces = [arg.trace for arg in args if isinstance(arg, Tracer)]
+def find_top_trace(args) -> Interpreter:
+  main_traces = [arg.interp for arg in args if isinstance(arg, Tracer)]
   top_main_trace = max(main_traces, default=TRACE_STACK[0])
   if DYNAMIC_TRACE and DYNAMIC_TRACE > top_main_trace:
     top_main_trace = DYNAMIC_TRACE
   return top_main_trace
 
 
-def full_raise(trace: MainTrace, arg: Any) -> Tracer:
+def full_raise(trace: Interpreter, arg: Any) -> Tracer:
   if isinstance(arg, Tracer):
     main = trace
-    arg_main = arg.trace
+    arg_main = arg.interp
     if arg_main is main:
       return arg
     elif arg_main < main:
